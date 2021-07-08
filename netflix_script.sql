@@ -2,7 +2,8 @@
 
 -- DB Creation
 create database netflix;
-
+alter role postgres set search_path = netflix;
+show search_path;
 
 -- Status table in order to log and verify every step of the script
 create table if not exists table_status(
@@ -37,10 +38,11 @@ insert into table_lang(lang) values
 ('Italian'),
 ('Portuguese'),
 ('Greek'),
-('Turkish')
+('Turkish');
 
 
 insert into table_status (qty,obj,act,loc,logdata) values (1,'table','Created','table languages','list of languages for films');
+
 
 -- List of rate qualifications
 create table if not exists table_rate(
@@ -130,7 +132,6 @@ create table if not exists table_pivot(
 );
 
 insert into table_status (qty,obj,act,loc,logdata) values (1,'table','Created','table pivot','used for data review before to be inserted into buffer');
-
 
 
 ---------------------------------- DATA Injection and generating STORAGE -------------------------
@@ -1142,6 +1143,8 @@ insert into table_pivot (title,description,release_year,language_id,film_length,
 ('Baby Geniuses','Quality-focused demand-driven pricing structure',1992,5,98,1),
 ('Love & Pop','Organized global open architecture',1985,6,91,4);
 
+
+---- 1st data set handling, filtering and validating ----
 
 -- Validation of the number of table_pivot rows before to be inserted into table_buffer 
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(title) from table_pivot),'table rows','verified','table pivot','validation of number of rows in dataset #1 before to be inserted into table buffer');
@@ -2172,6 +2175,8 @@ insert into table_pivot (title,description,release_year,language_id,film_length,
 ('Shinobi No Mono 3: Resurrection (Shin shinobi no mono)','Cross-platform incremental projection',1995,9,93,2),
 ('Summer of the Monkeys','Ameliorated needs-based flexibility',1989,2,93,5);
 
+
+---- 2nd data set handling, filtering and validating ----
 
 -- Validation of the number of table_pivot rows before to be inserted into table_buffer 
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(title) from table_pivot),'table rows','verified','table pivot','validation of number of rows in dataset #2 before to be inserted into table buffer');
@@ -3205,6 +3210,8 @@ insert into table_pivot (title,description,release_year,language_id,film_length,
 ('Resurrected, The','Customizable analyzing Graphic Interface',1987,9,86,4);
 
 
+---- 3rd data set handling, filtering and validating ----
+
 -- Validation of the number of table_pivot rows before to be inserted into table_buffer 
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(title) from table_pivot),'table rows','verified','table pivot','validation of number of rows in dataset #3 before to be inserted into table buffer');
 
@@ -4235,6 +4242,8 @@ insert into table_pivot (title,description,release_year,language_id,film_length,
 ('The African','Triple-buffered zero administration middleware',1992,6,91,4),
 ('Girls in Prison','Progressive value-added approach',1982,5,89,3);
 
+
+---- 4th data set handling, filtering and validating ----
 
 -- Validation of the number of table_pivot rows before to be inserted into table_buffer 
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(title) from table_pivot),'table rows','verified','table pivot','validation of number of rows in dataset #4 before to be inserted into table buffer');
@@ -5267,6 +5276,8 @@ insert into table_pivot (title,description,release_year,language_id,film_length,
 ('Blink','Quality-focused fresh-thinking framework',1989,2,91,4);
 
 
+---- 5th data set handling, filtering and validating ----
+
 -- Validation of the number of table_pivot rows before to be inserted into table_buffer 
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(title) from table_pivot),'table rows','verified','table pivot','validation of number of rows in dataset #5 before to be inserted into table buffer');
 
@@ -6298,6 +6309,8 @@ insert into table_pivot (title,description,release_year,language_id,film_length,
 ('River of No Return','Cloned national internet solution',1994,8,91,4);
 
 
+---- 6th data set handling, filtering and validating ----
+
 -- Validation of the number of table_pivot rows before to be inserted into table_buffer 
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(title) from table_pivot),'table rows','verified','table pivot','validation of number of rows in dataset #6 before to be inserted into table buffer');
 
@@ -6347,14 +6360,26 @@ insert into table_status (qty,obj,act,loc,logdata) values ((select count(title) 
 -- Validation of true differents rows into table films (main table) 
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(*) from (select distinct on(title) title from table_films) as myquery),'table rows','verified','table films','validation of true different number of rows after table buffer be inserted into table films');
 
--- DELETE Pivot data from table buffer thats not longer needed it
+-- DELETE BUFFER data from table buffer thats not longer needed it
 delete from table_buffer;
 
 -- Log deletion action into status table
 insert into table_status (qty,obj,act,loc,logdata) values (1,'table data','deleted','table buffer','deletion of data rows in table buffer after be inserted into table films');
 
 
+---------------------------------- Cleaning table that are not longer needed it --------------------------
 
+-- delete the whole table
+drop table if exists table_buffer;
+
+-- Log into table_status 
+insert into table_status (qty,obj,act,loc,logdata) values (1,'table','deleted','table buffer','deletion of table buffer');
+
+-- delete the whole table
+drop table if exists table_pivot;
+
+-- Log into table_status 
+insert into table_status (qty,obj,act,loc,logdata) values (1,'table','deleted','table pivot','deletion of table pivot');
 
 
 
@@ -6446,11 +6471,20 @@ create or replace view review_log as
 		table_films.id as film_id,
 		table_films.title,
 		table_films.description,
-		table_review.description as qualification 
+		table_films.release_year as rel,
+		table_films.film_length as len,
+		'mins' as dur,
+		table_lang.lang,
+		table_rate.rate,
+		table_review.description as qualification,
+		(select avg(table_reviews_log.review_id) from table_reviews_log group by table_reviews_log.film_id having table_reviews_log.film_id = table_films.id) as avgQual
 	from table_reviews_log
-		inner join table_films on table_reviews_log.film_id = table_films.id 
+		inner join table_films on table_reviews_log.film_id = table_films.id
+		inner join table_lang on table_films.language_id = table_lang.id
+		inner join table_rate on table_films.rate_id = table_rate.id 
 		inner join table_review on table_reviews_log.review_id = table_review.id;
 
+	
 -- Log into table status
 insert into table_status (qty,obj,act,loc,logdata) values ((select count(log_id) from review_log),'rows','verified','review log','reviews logs query view executed');
 
@@ -6617,16 +6651,16 @@ insert into table_status (qty,obj,act,loc,logdata) values ((select count(id) fro
 
 ---------------------------------- Disposal everything its not needed it -------------------------
 
--- delete table table_buffer
--- delete table table_pivot 
-
+-- delete table table_buffer -- OK
+-- delete table table_pivot -- OK
 
 ---------------------------------- Some Recommendations for QC -------------------------
 
--- assure db usage (pointing to correct db) 
+-- assure db usage (pointing to correct db) -- NG -- couldn´t possible, needs to be manually referenced
 -- validate that table doesn´t exist before -- OK
--- delete or destroy any other table or buffer if are not needed it
+-- delete or destroy any other table or buffer if are not needed it -- OK
 -- generate the log file to track script movements -- OK
+-- double run errors avoidance -- more time is needed it =(
 
 
 
